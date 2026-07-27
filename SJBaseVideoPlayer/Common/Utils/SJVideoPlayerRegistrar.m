@@ -70,7 +70,7 @@ NS_ASSUME_NONNULL_BEGIN
 }
 
 - (SJVideoPlayerAppState)state {
-    return UIApplication.sharedApplication.applicationState;
+    return (SJVideoPlayerAppState)UIApplication.sharedApplication.applicationState;
 }
 @end
 NS_ASSUME_NONNULL_END

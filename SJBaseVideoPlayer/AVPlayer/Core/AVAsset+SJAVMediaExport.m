@@ -456,7 +456,8 @@ static UIImage *getImage(NSData *data, CGFloat scale) {
             return nil;
         }
         
-        CGImageAlphaInfo alphaInfo = CGImageGetAlphaInfo(imageRef) & kCGBitmapAlphaInfoMask;
+        CGBitmapInfo alphaInfoMask = ((CGBitmapInfo)CGImageGetAlphaInfo(imageRef)) & kCGBitmapAlphaInfoMask;
+        CGImageAlphaInfo alphaInfo = (CGImageAlphaInfo)alphaInfoMask;
         BOOL hasAlpha = NO;
         if (alphaInfo == kCGImageAlphaPremultipliedLast ||
             alphaInfo == kCGImageAlphaPremultipliedFirst ||

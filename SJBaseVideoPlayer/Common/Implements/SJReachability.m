@@ -7,10 +7,13 @@
 //
 
 #import "SJReachability.h"
-#include <arpa/inet.h>
 #include <ifaddrs.h>
 #include <net/if.h>
 #include <net/if_dl.h>
+#include <stdint.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <strings.h>
 
 #import "NSTimer+SJAssetAdd.h"
 //#if __has_include(<Reachability/Reachability.h>)
@@ -60,7 +63,7 @@ typedef void (^NetworkUnreachable) (_Reachability * reachability);
 //compatibility with Apples original code. (see .m)
 + (_Reachability*)reachabilityWithHostName:(NSString*)hostname;
 + (_Reachability*)reachabilityForInternetConnection;
-+ (_Reachability*)reachabilityWithAddress:(void *)hostAddress;
++ (_Reachability*)reachabilityWithAddress:(const struct sockaddr *)hostAddress;
 + (_Reachability*)reachabilityForLocalWiFi;
 
 - (_Reachability *)initWithReachabilityRef:(SCNetworkReachabilityRef)ref;
@@ -88,14 +91,31 @@ typedef void (^NetworkUnreachable) (_Reachability * reachability);
 
 @end
 
-#import <sys/socket.h>
-#import <netinet/in.h>
-#import <arpa/inet.h>
-#import <ifaddrs.h>
-#import <netdb.h>
-
-
 static NSString *const kReachabilityChangedNotification = @"_kReachabilityChangedNotification";
+
+typedef struct {
+    uint8_t sin_len;
+    sa_family_t sin_family;
+    uint8_t sin_port[2];
+    uint8_t sin_addr[4];
+    uint8_t sin_zero[8];
+} SJReachabilityIPv4Address;
+
+static struct sockaddr
+SJReachabilityMakeIPv4Address(uint8_t first, uint8_t second, uint8_t third, uint8_t fourth)
+{
+    SJReachabilityIPv4Address address = {0};
+    address.sin_len = sizeof(address);
+    address.sin_family = AF_INET;
+    address.sin_addr[0] = first;
+    address.sin_addr[1] = second;
+    address.sin_addr[2] = third;
+    address.sin_addr[3] = fourth;
+    
+    struct sockaddr socketAddress = {0};
+    memcpy(&socketAddress, &address, sizeof(socketAddress));
+    return socketAddress;
+}
 
 
 @interface _Reachability ()
@@ -166,9 +186,9 @@ static void TMReachabilityCallback(SCNetworkReachabilityRef target, SCNetworkRea
     return nil;
 }
 
-+ (_Reachability *)reachabilityWithAddress:(void *)hostAddress
++ (_Reachability *)reachabilityWithAddress:(const struct sockaddr *)hostAddress
 {
-    SCNetworkReachabilityRef ref = SCNetworkReachabilityCreateWithAddress(kCFAllocatorDefault, (const struct sockaddr*)hostAddress);
+    SCNetworkReachabilityRef ref = SCNetworkReachabilityCreateWithAddress(kCFAllocatorDefault, hostAddress);
     if (ref)
     {
         id reachability = [[self alloc] initWithReachabilityRef:ref];
@@ -181,22 +201,14 @@ static void TMReachabilityCallback(SCNetworkReachabilityRef target, SCNetworkRea
 
 + (_Reachability *)reachabilityForInternetConnection
 {
-    struct sockaddr_in zeroAddress;
-    bzero(&zeroAddress, sizeof(zeroAddress));
-    zeroAddress.sin_len = sizeof(zeroAddress);
-    zeroAddress.sin_family = AF_INET;
+    struct sockaddr zeroAddress = SJReachabilityMakeIPv4Address(0, 0, 0, 0);
     
     return [self reachabilityWithAddress:&zeroAddress];
 }
 
 + (_Reachability*)reachabilityForLocalWiFi
 {
-    struct sockaddr_in localWifiAddress;
-    bzero(&localWifiAddress, sizeof(localWifiAddress));
-    localWifiAddress.sin_len            = sizeof(localWifiAddress);
-    localWifiAddress.sin_family         = AF_INET;
-    // IN_LINKLOCALNETNUM is defined in <netinet/in.h> as 169.254.0.0
-    localWifiAddress.sin_addr.s_addr    = htonl(IN_LINKLOCALNETNUM);
+    struct sockaddr localWifiAddress = SJReachabilityMakeIPv4Address(169, 254, 0, 0);
     
     return [self reachabilityWithAddress:&localWifiAddress];
 }
@@ -610,6 +622,8 @@ static NSNotificationName const SJReachabilityNetworkStatusDidChangeNotification
         uint32_t iBytes = 0;
         
         for ( ifa = ifa_list ; ifa ; ifa = ifa->ifa_next ) {
+            if (ifa->ifa_addr == NULL)
+                continue;
             if (AF_LINK != ifa->ifa_addr->sa_family)
                 continue;
             if (!(ifa->ifa_flags & IFF_UP) && !(ifa->ifa_flags & IFF_RUNNING))

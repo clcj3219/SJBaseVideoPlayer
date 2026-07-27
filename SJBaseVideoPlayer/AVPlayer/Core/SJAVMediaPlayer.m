@@ -181,12 +181,12 @@
 - (NSTimeInterval)currentTime {
     if ( mSeekingInfo.isSeeking ) return CMTimeGetSeconds(mSeekingInfo.time);
     AVPlayerItem *playerItem = mPlayer.currentItem;
-    return playerItem.status == AVPlayerStatusReadyToPlay ? CMTimeGetSeconds(playerItem.currentTime) : 0;
+    return playerItem.status == AVPlayerItemStatusReadyToPlay ? CMTimeGetSeconds(playerItem.currentTime) : 0;
 }
 
 - (NSTimeInterval)duration {
     AVPlayerItem *playerItem = mPlayer.currentItem;
-    return playerItem.status == AVPlayerStatusReadyToPlay ? CMTimeGetSeconds(playerItem.duration) : 0;
+    return playerItem.status == AVPlayerItemStatusReadyToPlay ? CMTimeGetSeconds(playerItem.duration) : 0;
 }
 
 - (NSTimeInterval)playableDuration {
